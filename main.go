@@ -26,14 +26,18 @@ type pokedexItem struct {
 var pokedex map[string]pokedexItem
 
 func main() {
-	scanner := bufio.NewScanner(os.Stdin)
+	locUrl := "https://pokeapi.co/api/v2/location-area/"
+
 	config := config{
-		previous: "",
-		next:     "https://pokeapi.co/api/v2/location-area/",
-		cache:    *pokecache.NewCache(5 * time.Second),
-		url:      "https://pokeapi.co/api/v2/location-area/",
+		previous:    "",
+		next:        locUrl,
+		cache:       *pokecache.NewCache(5 * time.Second),
+		locationUrl: locUrl,
 	}
+
 	pokedex = make(map[string]pokedexItem)
+	scanner := bufio.NewScanner(os.Stdin)
+
 	for {
 		fmt.Print("Pokedex > ")
 		scanner.Scan()
@@ -198,9 +202,11 @@ func commandCatch(config *config) error {
 		return fmt.Errorf("provide a pokemon name for the catch command")
 	}
 
-	fmt.Printf("Throwing a Pokeball at %s...\n", config.args[0])
+	pokeName := config.args[0]
 
-	resp, err := http.Get("https://pokeapi.co/api/v2/pokemon/" + config.args[0])
+	fmt.Printf("Throwing a Pokeball at %s...\n", pokeName)
+
+	resp, err := http.Get("https://pokeapi.co/api/v2/pokemon/" + pokeName)
 	if err != nil {
 		return nil
 	}
@@ -217,16 +223,16 @@ func commandCatch(config *config) error {
 
 	caught := rand.Float64() > float64(pokemonResp.BaseExp)/1000
 	if caught {
-		fmt.Printf("%s was caught!\n", config.args[0])
-		pokedex[config.args[0]] = pokedexItem{
-			name:   config.args[0],
+		fmt.Printf("%s was caught!\n", pokeName)
+		pokedex[pokeName] = pokedexItem{
+			name:   pokeName,
 			height: pokemonResp.Height,
 			weight: pokemonResp.Weight,
 			stats:  formatStats(pokemonResp.Stats),
 			types:  formatTypes(pokemonResp.Types),
 		}
 	} else {
-		fmt.Printf("%s escaped!\n", config.args[0])
+		fmt.Printf("%s escaped!\n", pokeName)
 	}
 
 	return nil
@@ -276,7 +282,7 @@ func commandExpore(config *config) error {
 		return fmt.Errorf("provide a location for the explore command")
 	}
 
-	resp, err := http.Get(config.url + config.args[0])
+	resp, err := http.Get(config.locationUrl + config.args[0])
 	if err != nil {
 		return err
 	}
@@ -356,11 +362,11 @@ type location struct {
 }
 
 type config struct {
-	next     string
-	previous string
-	cache    pokecache.Cache
-	args     []string
-	url      string
+	next        string
+	previous    string
+	cache       pokecache.Cache
+	args        []string
+	locationUrl string
 }
 
 type locationResp struct {

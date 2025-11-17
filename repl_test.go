@@ -1,9 +1,10 @@
 package main
 
 import (
-	pokecache "pokedexcli/internal"
 	"testing"
 	"time"
+
+	pokecache "github.com/caiaandrei/pokedexcli/internal"
 )
 
 func TestCleanupInput(t *testing.T) {
