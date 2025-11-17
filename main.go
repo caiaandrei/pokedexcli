@@ -8,10 +8,11 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"os"
-	pokecache "pokedexcli/internal"
 	"slices"
 	"strings"
 	"time"
+
+	pokecache "github.com/caiaandrei/pokedexcli/internal"
 )
 
 type pokedexItem struct {
