@@ -7,8 +7,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	pokecache "pokedexcli/internal"
 	"slices"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -16,6 +18,8 @@ func main() {
 	config := config{
 		previous: "",
 		next:     "https://pokeapi.co/api/v2/location-area/",
+		cache:    *pokecache.NewCache(5 * time.Second),
+		url:      "https://pokeapi.co/api/v2/location-area/",
 	}
 	for {
 		fmt.Print("Pokedex > ")
@@ -26,6 +30,7 @@ func main() {
 
 		if len(words) > 0 {
 			firstWord = strings.ToLower(words[0])
+			config.args = words[1:]
 		} else {
 			firstWord = ""
 		}
@@ -71,6 +76,11 @@ func getCommands() map[string]cliCommand {
 			description: "Displays the previous 20 locations areas in the Pokemon world",
 			callback:    commandMapb,
 		},
+		"explore": {
+			name:        "explore",
+			description: "Get a list of all the Pokémon from a location",
+			callback:    commandExpore,
+		},
 	}
 }
 
@@ -103,12 +113,77 @@ func commandHelp(config *config) error {
 }
 
 func commandMapb(config *config) error {
+
+	cached, exists := config.cache.Get(config.previous)
+
+	if exists {
+		var locResp locationsResp
+
+		err := json.Unmarshal(cached, &locResp)
+
+		if err != nil {
+			return nil
+		}
+
+		for i := range locResp.Results {
+			fmt.Printf("%v\n", locResp.Results[i].Name)
+		}
+		return nil
+	}
+
 	return getLocations(config, "back")
 }
 
 func commandMap(config *config) error {
 
+	cached, exists := config.cache.Get(config.next)
+
+	if exists {
+		var locResp locationsResp
+
+		err := json.Unmarshal(cached, &locResp)
+
+		if err != nil {
+			return nil
+		}
+
+		for i := range locResp.Results {
+			fmt.Printf("%v\n", locResp.Results[i].Name)
+		}
+		return nil
+	}
+
 	return getLocations(config, "forward")
+}
+
+func commandExpore(config *config) error {
+	fmt.Println(config.args)
+	if len(config.args) == 0 {
+		return fmt.Errorf("provide a location for the explore command")
+	}
+
+	resp, err := http.Get(config.url + config.args[0])
+	if err != nil {
+		return err
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return err
+	}
+
+	var locationResp locationResp
+	err = json.Unmarshal(body, &locationResp)
+	if err != nil {
+		return err
+	}
+
+	for i := range locationResp.PokemonResp {
+		fmt.Println(locationResp.PokemonResp[i].Pokemon.Name)
+	}
+
+	return nil
 }
 
 func getLocations(config *config, direction string) error {
@@ -137,7 +212,9 @@ func getLocations(config *config, direction string) error {
 		return err
 	}
 
-	var locResp locationResp
+	config.cache.Add(url, body)
+
+	var locResp locationsResp
 
 	err = json.Unmarshal(body, &locResp)
 
@@ -149,13 +226,12 @@ func getLocations(config *config, direction string) error {
 		fmt.Printf("%v\n", locResp.Results[i].Name)
 	}
 
-	config.next = locResp.Next
 	config.previous = locResp.Previous
-
+	config.next = locResp.Next
 	return nil
 }
 
-type locationResp struct {
+type locationsResp struct {
 	// count   int
 	Next     string
 	Previous string
@@ -170,4 +246,19 @@ type location struct {
 type config struct {
 	next     string
 	previous string
+	cache    pokecache.Cache
+	args     []string
+	url      string
+}
+
+type locationResp struct {
+	PokemonResp []pokemonResp `json:"pokemon_encounters"`
+}
+
+type pokemonResp struct {
+	Pokemon pokemon `json:"pokemon"`
+}
+
+type pokemon struct {
+	Name string
 }
